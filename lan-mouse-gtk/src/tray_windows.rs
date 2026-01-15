@@ -56,8 +56,8 @@ pub fn setup_tray(app: &Application, window: &Window) {
             .build();
 
         let menu_receiver = MenuEvent::receiver();
-        let open_id = open_item.id();
-        let quit_id = quit_item.id();
+        let open_id = open_item.id().clone();
+        let quit_id = quit_item.id().clone();
 
         let event_loop = EventLoop::new();
         event_loop.run(move |event, _, control_flow| {
