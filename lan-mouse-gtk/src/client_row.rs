@@ -10,7 +10,7 @@ use super::ClientObject;
 
 glib::wrapper! {
     pub struct ClientRow(ObjectSubclass<imp::ClientRow>)
-    @extends gtk::ListBoxRow, gtk::Widget, adw::PreferencesRow, adw::ExpanderRow,
+    @extends adw::ExpanderRow, adw::PreferencesRow, gtk::ListBoxRow, gtk::Widget,
     @implements gtk::Accessible, gtk::Actionable, gtk::Buildable, gtk::ConstraintTarget;
 }
 
@@ -22,6 +22,9 @@ impl ClientRow {
             .client_object
             .borrow_mut()
             .replace(client_object.clone());
+        // Ensure something is visible even before bindings populate
+        client_row.set_title("no hostname (click to edit)");
+        client_row.set_subtitle(DEFAULT_PORT.to_string().as_str());
         client_row
     }
 
@@ -42,7 +45,7 @@ impl ClientRow {
 
         // bind hostname to hostname edit field
         let hostname_binding = client_object
-            .bind_property("hostname", &self.imp().hostname.get(), "text")
+            .bind_property("hostname", &self.imp().hostname(), "text")
             .transform_to(|_, v: Option<String>| {
                 if let Some(hostname) = v {
                     Some(hostname)
@@ -56,13 +59,19 @@ impl ClientRow {
         // bind hostname to title
         let title_binding = client_object
             .bind_property("hostname", self, "title")
-            .transform_to(|_, v: Option<String>| v.or(Some("<span font_style=\"italic\" font_weight=\"light\" foreground=\"darkgrey\">no hostname!</span>".to_string())))
+            .transform_to(|_, v: Option<String>| {
+                // Ensure we always show something meaningful, even if hostname is empty
+                match v {
+                    Some(ref s) if !s.trim().is_empty() => Some(s.clone()),
+                    _ => Some("no hostname (click to edit)".to_string()),
+                }
+            })
             .sync_create()
             .build();
 
         // bind port to port edit field
         let port_binding = client_object
-            .bind_property("port", &self.imp().port.get(), "text")
+            .bind_property("port", &self.imp().port(), "text")
             .transform_to(|_, v: u32| {
                 if v == DEFAULT_PORT as u32 {
                     Some("".to_string())
@@ -76,12 +85,19 @@ impl ClientRow {
         // bind port to subtitle
         let subtitle_binding = client_object
             .bind_property("port", self, "subtitle")
+            .transform_to(|_, v: u32| {
+                if v == DEFAULT_PORT as u32 {
+                    Some(DEFAULT_PORT.to_string())
+                } else {
+                    Some(v.to_string())
+                }
+            })
             .sync_create()
             .build();
 
         // bind position to selected position
         let position_binding = client_object
-            .bind_property("position", &self.imp().position.get(), "selected")
+            .bind_property("position", &self.imp().position(), "selected")
             .transform_to(|_, v: String| match v.as_str() {
                 "right" => Some(1u32),
                 "top" => Some(2u32),
@@ -149,5 +165,11 @@ impl ClientRow {
 
     pub fn set_dns_state(&self, resolved: bool) {
         self.imp().set_dns_state(resolved);
+    }
+
+    pub fn open_editor(&self) {
+        self.set_enable_expansion(true);
+        self.set_expanded(true);
+        self.imp().hostname().grab_focus();
     }
 }

@@ -260,7 +260,26 @@ impl Window {
 
     fn create_client_row(&self, client_object: &ClientObject) -> ClientRow {
         let row = ClientRow::new(client_object);
+        row.add_css_class("client-row");
         row.bind(client_object);
+        let subtitle = row.subtitle();
+        log::info!(
+            "client_row created handle={} title='{}' subtitle='{}'",
+            client_object.handle(),
+            row.title(),
+            subtitle
+        );
+        row.connect_map(|r| {
+            let subtitle = r.subtitle();
+            log::info!(
+                "client_row mapped title='{}' subtitle='{}' visible={} size={}x{}",
+                r.title(),
+                subtitle,
+                r.is_visible(),
+                r.allocated_width(),
+                r.allocated_height(),
+            );
+        });
         row
     }
 
@@ -276,10 +295,18 @@ impl Window {
         client: ClientConfig,
         state: ClientState,
     ) {
+        log::info!(
+            "frontend new_client handle={} hostname={:?} port={} pos={}",
+            handle,
+            client.hostname,
+            client.port,
+            client.pos
+        );
         let client = ClientObject::new(handle, client, state.clone());
         self.clients().append(&client);
         self.update_placeholder_visibility();
         self.update_dns_state(handle, !state.ips.is_empty());
+        self.expand_new_client(handle);
     }
 
     pub(super) fn update_client_list(
@@ -372,6 +399,21 @@ impl Window {
         }
     }
 
+    fn expand_new_client(&self, handle: ClientHandle) {
+        glib::idle_add_local(clone!(
+            #[weak(rename_to = window)]
+            self,
+            #[upgrade_or]
+            glib::ControlFlow::Break,
+            move || {
+                if let Some(row) = window.row_for_handle(handle) {
+                    row.open_editor();
+                }
+                glib::ControlFlow::Break
+            }
+        ));
+    }
+
     fn request_port_change(&self) {
         let port = self
             .imp()
@@ -393,6 +435,7 @@ impl Window {
     }
 
     fn request_client_create(&self) {
+        log::info!("frontend request: create client");
         self.request(FrontendRequest::Create);
     }
 

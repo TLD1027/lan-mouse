@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use env_logger::Env;
 use input_capture::InputCaptureError;
 use input_emulation::InputEmulationError;

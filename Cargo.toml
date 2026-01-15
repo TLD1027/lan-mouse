@@ -26,6 +26,9 @@ panic = "abort"
 [build-dependencies]
 shadow-rs = "1.2.0"
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
+
 [dependencies]
 input-event = { path = "input-event", version = "0.3.0" }
 input-emulation = { path = "input-emulation", version = "0.3.0", default-features = false }

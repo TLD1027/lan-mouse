@@ -183,6 +183,19 @@ impl ObjectImpl for Window {
 }
 
 impl WidgetImpl for Window {}
-impl WindowImpl for Window {}
+impl WindowImpl for Window {
+    fn close_request(&self) -> glib::Propagation {
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        {
+            // Keep the app running so it can be reopened from the tray icon.
+            self.obj().set_visible(false);
+            return glib::Propagation::Stop;
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        {
+            self.parent_close_request()
+        }
+    }
+}
 impl ApplicationWindowImpl for Window {}
 impl AdwApplicationWindowImpl for Window {}

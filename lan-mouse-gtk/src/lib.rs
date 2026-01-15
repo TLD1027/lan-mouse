@@ -4,6 +4,10 @@ mod client_row;
 mod fingerprint_window;
 mod key_object;
 mod key_row;
+#[cfg(target_os = "linux")]
+mod tray;
+#[cfg(target_os = "windows")]
+mod tray_windows;
 mod window;
 
 use std::{env, process, str};
@@ -55,6 +59,7 @@ fn gtk_main() -> glib::ExitCode {
 
     app.connect_startup(|app| {
         load_icons();
+        load_css();
         setup_actions(app);
         setup_menu(app);
     });
@@ -68,6 +73,41 @@ fn load_icons() {
     let display = &Display::default().expect("Could not connect to a display.");
     let icon_theme = IconTheme::for_display(display);
     icon_theme.add_resource_path("/de/feschber/LanMouse/icons");
+    gtk::Window::set_default_icon_name("de.feschber.LanMouse");
+}
+
+fn load_css() {
+    // Ensure client rows stay readable on custom themes
+    const CSS: &str = "
+.client-row {
+    color: #ffffff;
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 6px 10px;
+}
+.client-row * { color: inherit; }
+.client-row label,
+.client-row entry,
+.client-row button {
+    color: #ffffff;
+    opacity: 1;
+}
+.client-row entry {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+";
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(CSS);
+    if let Some(display) = Display::default() {
+        gtk::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            // Override aggressive theme rules that may hide row content
+            gtk::STYLE_PROVIDER_PRIORITY_USER,
+        );
+    }
 }
 
 // Add application actions
@@ -123,6 +163,11 @@ fn build_ui(app: &Application) {
     });
 
     let window = Window::new(app, frontend_tx);
+
+    #[cfg(target_os = "linux")]
+    tray::setup_tray(app, &window);
+    #[cfg(target_os = "windows")]
+    tray_windows::setup_tray(app, &window);
 
     glib::spawn_future_local(clone!(
         #[weak]

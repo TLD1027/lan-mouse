@@ -19,17 +19,11 @@ pub struct ClientRow {
     #[template_child]
     pub dns_button: TemplateChild<gtk::Button>,
     #[template_child]
-    pub hostname: TemplateChild<gtk::Entry>,
-    #[template_child]
-    pub port: TemplateChild<gtk::Entry>,
-    #[template_child]
-    pub position: TemplateChild<ComboRow>,
-    #[template_child]
-    pub delete_row: TemplateChild<ActionRow>,
-    #[template_child]
-    pub delete_button: TemplateChild<gtk::Button>,
-    #[template_child]
     pub dns_loading_indicator: TemplateChild<gtk::Spinner>,
+    pub hostname: RefCell<Option<gtk::Entry>>,
+    pub port: RefCell<Option<gtk::Entry>>,
+    pub position: RefCell<Option<ComboRow>>,
+    pub delete_button: RefCell<Option<gtk::Button>>,
     pub bindings: RefCell<Vec<Binding>>,
     hostname_change_handler: RefCell<Option<SignalHandlerId>>,
     port_change_handler: RefCell<Option<SignalHandlerId>>,
@@ -60,14 +54,59 @@ impl ObjectSubclass for ClientRow {
 impl ObjectImpl for ClientRow {
     fn constructed(&self) {
         self.parent_constructed();
-        self.delete_button.connect_clicked(clone!(
+        let host_row = ActionRow::builder()
+            .title("hostname")
+            .subtitle("port")
+            .build();
+        let hostname = Entry::builder()
+            .xalign(0.5)
+            .valign(gtk::Align::Center)
+            .placeholder_text("hostname")
+            .width_chars(-1)
+            .build();
+        host_row.add_suffix(&hostname);
+        let port = Entry::builder()
+            .max_width_chars(5)
+            .input_purpose(gtk::InputPurpose::Number)
+            .xalign(0.5)
+            .valign(gtk::Align::Center)
+            .placeholder_text("4242")
+            .width_chars(5)
+            .build();
+        host_row.add_suffix(&port);
+        self.obj().add_row(&host_row);
+
+        let position_model = gtk::StringList::new(&["Left", "Right", "Top", "Bottom"]);
+        let position = ComboRow::builder()
+            .title("position")
+            .model(&position_model)
+            .build();
+        self.obj().add_row(&position);
+
+        let delete_row = ActionRow::builder().title("delete this client").build();
+        let delete_button = Button::builder()
+            .icon_name("user-trash-symbolic")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Center)
+            .name("delete-button")
+            .build();
+        delete_button.add_css_class("error");
+        delete_row.add_suffix(&delete_button);
+        self.obj().add_row(&delete_row);
+
+        self.hostname.replace(Some(hostname.clone()));
+        self.port.replace(Some(port.clone()));
+        self.position.replace(Some(position.clone()));
+        self.delete_button.replace(Some(delete_button.clone()));
+
+        delete_button.connect_clicked(clone!(
             #[weak(rename_to = row)]
             self,
             move |button| {
                 row.handle_client_delete(button);
             }
         ));
-        let handler = self.hostname.connect_changed(clone!(
+        let handler = hostname.connect_changed(clone!(
             #[weak(rename_to = row)]
             self,
             move |entry| {
@@ -75,7 +114,7 @@ impl ObjectImpl for ClientRow {
             }
         ));
         self.hostname_change_handler.replace(Some(handler));
-        let handler = self.port.connect_changed(clone!(
+        let handler = port.connect_changed(clone!(
             #[weak(rename_to = row)]
             self,
             move |entry| {
@@ -83,7 +122,7 @@ impl ObjectImpl for ClientRow {
             }
         ));
         self.port_change_handler.replace(Some(handler));
-        let handler = self.position.connect_selected_notify(clone!(
+        let handler = position.connect_selected_notify(clone!(
             #[weak(rename_to = row)]
             self,
             move |position| {
@@ -127,6 +166,28 @@ impl ObjectImpl for ClientRow {
     }
 }
 
+impl ClientRow {
+    pub(crate) fn hostname(&self) -> Entry {
+        self.hostname
+            .borrow()
+            .as_ref()
+            .expect("hostname entry")
+            .clone()
+    }
+
+    pub(crate) fn port(&self) -> Entry {
+        self.port.borrow().as_ref().expect("port entry").clone()
+    }
+
+    pub(crate) fn position(&self) -> ComboRow {
+        self.position
+            .borrow()
+            .as_ref()
+            .expect("position row")
+            .clone()
+    }
+}
+
 #[gtk::template_callbacks]
 impl ClientRow {
     #[template_callback]
@@ -163,43 +224,46 @@ impl ClientRow {
     }
 
     pub(super) fn set_hostname(&self, hostname: Option<String>) {
-        let position = self.hostname.position();
+        let entry = self.hostname();
+        let position = entry.position();
         let handler = self.hostname_change_handler.borrow();
         let handler = handler.as_ref().expect("signal handler");
-        self.hostname.block_signal(handler);
+        entry.block_signal(handler);
         self.client_object
             .borrow_mut()
             .as_mut()
             .expect("client object")
             .set_property("hostname", hostname);
-        self.hostname.unblock_signal(handler);
-        self.hostname.set_position(position);
+        entry.unblock_signal(handler);
+        entry.set_position(position);
     }
 
     pub(super) fn set_port(&self, port: u16) {
-        let position = self.port.position();
+        let entry = self.port();
+        let position = entry.position();
         let handler = self.port_change_handler.borrow();
         let handler = handler.as_ref().expect("signal handler");
-        self.port.block_signal(handler);
+        entry.block_signal(handler);
         self.client_object
             .borrow_mut()
             .as_mut()
             .expect("client object")
             .set_port(port as u32);
-        self.port.unblock_signal(handler);
-        self.port.set_position(position);
+        entry.unblock_signal(handler);
+        entry.set_position(position);
     }
 
     pub(super) fn set_pos(&self, pos: Position) {
+        let position = self.position();
         let handler = self.position_change_handler.borrow();
         let handler = handler.as_ref().expect("signal handler");
-        self.position.block_signal(handler);
+        position.block_signal(handler);
         self.client_object
             .borrow_mut()
             .as_mut()
             .expect("client object")
             .set_position(pos.to_string());
-        self.position.unblock_signal(handler);
+        position.unblock_signal(handler);
     }
 
     pub(super) fn set_active(&self, active: bool) {
