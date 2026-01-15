@@ -13,7 +13,9 @@ use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use tao::event::{Event, StartCause};
 #[cfg(target_os = "windows")]
-use tao::event_loop::{ControlFlow, EventLoop};
+use tao::event_loop::{ControlFlow, EventLoopBuilder};
+#[cfg(target_os = "windows")]
+use tao::platform::windows::EventLoopBuilderExtWindows;
 #[cfg(target_os = "windows")]
 use tray_icon::{
     menu::{Menu, MenuEvent, MenuItem},
@@ -58,7 +60,9 @@ pub fn setup_tray(app: &Application, window: &Window) {
         let open_id = open_item.id().clone();
         let quit_id = quit_item.id().clone();
 
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoopBuilder::new()
+            .with_any_thread(true)
+            .build();
         let mut tray = None;
         let mut menu = Some(menu);
         let mut icon = Some(icon);
