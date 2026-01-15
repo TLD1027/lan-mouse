@@ -5,9 +5,11 @@ use adw::prelude::{ApplicationExt, GtkWindowExt};
 #[cfg(target_os = "windows")]
 use async_channel::Receiver;
 #[cfg(target_os = "windows")]
-use gtk::{gdk_pixbuf::Pixbuf, glib};
+use gtk::glib;
 #[cfg(target_os = "windows")]
 use gtk::glib::prelude::ObjectExt;
+#[cfg(target_os = "windows")]
+use image::GenericImageView;
 #[cfg(target_os = "windows")]
 use tao::event::{Event, StartCause};
 #[cfg(target_os = "windows")]
@@ -113,37 +115,13 @@ async fn handle_commands(
 
 #[cfg(target_os = "windows")]
 fn load_tray_icon() -> Option<tray_icon::Icon> {
-    const ICON_RESOURCE: &str = "/de/feschber/LanMouse/icons/tray-icon.png";
-    let pixbuf = Pixbuf::from_resource_at_scale(ICON_RESOURCE, 22, 22, true).ok()?;
-
-    let width = pixbuf.width();
-    let height = pixbuf.height();
-    let rowstride = pixbuf.rowstride() as usize;
-    let n_channels = pixbuf.n_channels() as usize;
-    let has_alpha = pixbuf.has_alpha();
-    let bytes = pixbuf.read_pixel_bytes();
-    let data = bytes.as_ref();
-
-    if width <= 0 || height <= 0 || n_channels < 3 {
-        return None;
+    if let Ok(icon) = tray_icon::Icon::from_resource_name("IDI_ICON1", None) {
+        return Some(icon);
     }
 
-    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
-    for y in 0..height as usize {
-        let row = &data[y * rowstride..];
-        for x in 0..width as usize {
-            let idx = x * n_channels;
-            let r = row[idx];
-            let g = row[idx + 1];
-            let b = row[idx + 2];
-            let a = if has_alpha && n_channels >= 4 {
-                row[idx + 3]
-            } else {
-                255
-            };
-            rgba.extend_from_slice(&[r, g, b, a]);
-        }
-    }
-
-    tray_icon::Icon::from_rgba(rgba, width as u32, height as u32).ok()
+    let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/resources/tray-icon.png"));
+    let image = image::load_from_memory(bytes).ok()?;
+    let rgba = image.into_rgba8();
+    let (width, height) = rgba.dimensions();
+    tray_icon::Icon::from_rgba(rgba.into_raw(), width, height).ok()
 }
