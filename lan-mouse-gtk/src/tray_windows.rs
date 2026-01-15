@@ -41,7 +41,10 @@ pub fn setup_tray(app: &Application, window: &Window) {
     std::thread::spawn(move || {
         let icon = match load_tray_icon() {
             Some(icon) => icon,
-            None => return,
+            None => {
+                log::warn!("tray icon failed: icon not loaded");
+                return;
+            }
         };
         let menu = Menu::new();
         let open_item = MenuItem::new("Open", true, None);
@@ -49,20 +52,30 @@ pub fn setup_tray(app: &Application, window: &Window) {
         let _ = menu.append(&open_item);
         let _ = menu.append(&quit_item);
 
-        let _tray = TrayIconBuilder::new()
-            .with_tooltip("Lan Mouse")
-            .with_menu(Box::new(menu))
-            .with_icon(icon)
-            .build();
-
         let menu_receiver = MenuEvent::receiver();
         let open_id = open_item.id().clone();
         let quit_id = quit_item.id().clone();
 
         let event_loop = EventLoop::new();
+        let mut tray = None;
+        let mut menu = Some(menu);
+        let mut icon = Some(icon);
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             if matches!(event, Event::NewEvents(StartCause::Init)) {
+                if tray.is_none() {
+                    let menu = menu.take().unwrap();
+                    let icon = icon.take().unwrap();
+                    tray = TrayIconBuilder::new()
+                        .with_tooltip("Lan Mouse")
+                        .with_menu(Box::new(menu))
+                        .with_icon(icon)
+                        .build()
+                        .ok();
+                    if tray.is_none() {
+                        log::warn!("tray icon failed: build error");
+                    }
+                }
                 return;
             }
             while let Ok(event) = menu_receiver.try_recv() {
