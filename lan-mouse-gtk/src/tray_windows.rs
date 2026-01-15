@@ -3,9 +3,11 @@ use adw::Application;
 #[cfg(target_os = "windows")]
 use adw::prelude::{ApplicationExt, GtkWindowExt};
 #[cfg(target_os = "windows")]
-use async_channel::{Receiver, Sender};
+use async_channel::Receiver;
 #[cfg(target_os = "windows")]
 use gtk::{gdk_pixbuf::Pixbuf, glib};
+#[cfg(target_os = "windows")]
+use gtk::glib::prelude::ObjectExt;
 #[cfg(target_os = "windows")]
 use tao::event::{Event, StartCause};
 #[cfg(target_os = "windows")]
