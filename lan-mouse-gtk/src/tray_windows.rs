@@ -9,7 +9,7 @@ use gtk::glib;
 #[cfg(target_os = "windows")]
 use gtk::glib::prelude::ObjectExt;
 #[cfg(target_os = "windows")]
-use image::GenericImageView;
+use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use tao::event::{Event, StartCause};
 #[cfg(target_os = "windows")]
@@ -115,13 +115,53 @@ async fn handle_commands(
 
 #[cfg(target_os = "windows")]
 fn load_tray_icon() -> Option<tray_icon::Icon> {
-    if let Ok(icon) = tray_icon::Icon::from_resource_name("IDI_ICON1", None) {
-        return Some(icon);
+    match tray_icon::Icon::from_resource_name("IDI_ICON1", None) {
+        Ok(icon) => return Some(icon),
+        Err(err) => log::warn!("tray icon resource name failed: {err}"),
+    }
+
+    match tray_icon::Icon::from_resource(1, None) {
+        Ok(icon) => return Some(icon),
+        Err(err) => log::warn!("tray icon resource id failed: {err}"),
+    }
+
+    if let Some(path) = find_local_icon_path() {
+        match tray_icon::Icon::from_path(&path, None) {
+            Ok(icon) => return Some(icon),
+            Err(err) => log::warn!("tray icon path failed ({}): {err}", path.display()),
+        }
     }
 
     let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/resources/tray-icon.png"));
-    let image = image::load_from_memory(bytes).ok()?;
+    let image = match image::load_from_memory(bytes) {
+        Ok(image) => image,
+        Err(err) => {
+            log::warn!("tray icon png decode failed: {err}");
+            return None;
+        }
+    };
     let rgba = image.into_rgba8();
     let (width, height) = rgba.dimensions();
-    tray_icon::Icon::from_rgba(rgba.into_raw(), width, height).ok()
+    match tray_icon::Icon::from_rgba(rgba.into_raw(), width, height) {
+        Ok(icon) => Some(icon),
+        Err(err) => {
+            log::warn!("tray icon rgba failed: {err}");
+            None
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn find_local_icon_path() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let ico = dir.join("de.feschber.LanMouse.ico");
+    if ico.exists() {
+        return Some(ico);
+    }
+    let png = dir.join("tray-icon.png");
+    if png.exists() {
+        return Some(png);
+    }
+    None
 }
