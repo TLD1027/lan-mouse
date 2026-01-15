@@ -115,9 +115,11 @@ async fn handle_commands(
 
 #[cfg(target_os = "windows")]
 fn load_tray_icon() -> Option<tray_icon::Icon> {
-    match tray_icon::Icon::from_resource_name("IDI_ICON1", None) {
-        Ok(icon) => return Some(icon),
-        Err(err) => log::warn!("tray icon resource name failed: {err}"),
+    for name in ["MAINICON", "IDI_ICON1"] {
+        match tray_icon::Icon::from_resource_name(name, None) {
+            Ok(icon) => return Some(icon),
+            Err(err) => log::warn!("tray icon resource name failed ({name}): {err}"),
+        }
     }
 
     match tray_icon::Icon::from_resource(1, None) {
@@ -132,11 +134,14 @@ fn load_tray_icon() -> Option<tray_icon::Icon> {
         }
     }
 
-    let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/resources/tray-icon.png"));
+    let bytes = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/resources/de.feschber.LanMouse.ico"
+    ));
     let image = match image::load_from_memory(bytes) {
         Ok(image) => image,
         Err(err) => {
-            log::warn!("tray icon png decode failed: {err}");
+            log::warn!("tray icon ico decode failed: {err}");
             return None;
         }
     };
